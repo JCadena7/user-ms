@@ -3,6 +3,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { USER_REPOSITORY } from './domain/user.repository';
 import type { UserRepository } from './domain/user.repository';
+import { FindUsersDto } from './dto/find-users.dto';
 
 @Injectable()
 export class UsersService {
@@ -22,8 +23,22 @@ export class UsersService {
     });
   }
 
-  findAll() {
-    return this.repo.findAll();
+  async findAll(params: FindUsersDto) {
+    const result = await this.repo.findMany({
+      page: params.page,
+      limit: params.limit,
+      orderBy: params.orderBy,
+      order: params.order,
+      search: params.search,
+      email: params.email,
+      nombre: params.nombre,
+      clerkId: params.clerkId,
+      rolId: params.rolId,
+    });
+    if (typeof params.page === 'number' && params.page > 0) {
+      return result; // objeto paginado { data, total, page, limit }
+    }
+    return result.data; // lista simple sin paginación
   }
 
   async findOne(id: number) {

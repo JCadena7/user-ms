@@ -101,4 +101,71 @@ export class PgUserRepository implements UserRepository {
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
   }
+
+  async findMany(params: {
+    page?: number;
+    limit?: number;
+    orderBy?: 'id' | 'nombre' | 'email' | 'created_at';
+    order?: 'asc' | 'desc';
+    search?: string;
+    email?: string;
+    nombre?: string;
+    clerkId?: string;
+    rolId?: number;
+  }): Promise<{ data: User[]; total?: number; page?: number; limit?: number }> {
+    const where: string[] = [];
+    const values: any[] = [];
+
+    if (params.email) {
+      values.push(params.email);
+      where.push(`email = $${values.length}`);
+    }
+    if (params.nombre) {
+      values.push(`%${params.nombre}%`);
+      where.push(`nombre ILIKE $${values.length}`);
+    }
+    if (params.clerkId) {
+      values.push(params.clerkId);
+      where.push(`clerk_id = $${values.length}`);
+    }
+    if (typeof params.rolId === 'number') {
+      values.push(params.rolId);
+      where.push(`rol_id = $${values.length}`);
+    }
+    if (params.search) {
+      // Busca en nombre, email y clerk_id
+      values.push(`%${params.search}%`);
+      const k = `$${values.length}`;
+      where.push(`(nombre ILIKE ${k} OR email ILIKE ${k} OR clerk_id ILIKE ${k})`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const orderBy = params.orderBy ?? 'id';
+    const order = (params.order ?? 'asc').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+    const hasPagination = typeof params.page === 'number' && params.page > 0;
+
+    if (!hasPagination) {
+      const text = `SELECT id, clerk_id, nombre, email, rol_id, created_at, updated_at
+                    FROM usuarios ${whereSql}
+                    ORDER BY ${orderBy} ${order}`;
+      const rows = await this.db.query({ text, values });
+      return { data: rows.map(mapRow) };
+    }
+
+    const page = params.page!;
+    const limit = params.limit && params.limit > 0 ? Math.min(params.limit, 100) : 10;
+    const offset = (page - 1) * limit;
+
+    const countText = `SELECT COUNT(*)::int AS count FROM usuarios ${whereSql}`;
+    const [{ count }] = await this.db.query<{ count: number }>({ text: countText, values });
+
+    const dataText = `SELECT id, clerk_id, nombre, email, rol_id, created_at, updated_at
+                      FROM usuarios ${whereSql}
+                      ORDER BY ${orderBy} ${order}
+                      LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+    const dataRows = await this.db.query({ text: dataText, values: [...values, limit, offset] });
+    return { data: dataRows.map(mapRow), total: count, page, limit };
+  }
 }
