@@ -3,6 +3,8 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ParseIntPipe } from '@nestjs/common';
+import { FindUsersDto } from './dto/find-users.dto';
 
 @Controller()
 export class UsersController {
@@ -14,12 +16,12 @@ export class UsersController {
   }
 
   @MessagePattern('findAllUsers')
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@Payload() dto: FindUsersDto) {
+    return this.usersService.findAll(dto);
   }
 
   @MessagePattern('findOneUser')
-  findOne(@Payload() id: number) {
+  findOne(@Payload('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
   }
 
@@ -29,7 +31,7 @@ export class UsersController {
   }
 
   @MessagePattern('removeUser')
-  remove(@Payload() id: number) {
+  remove(@Payload('id', ParseIntPipe) id: number) {
     return this.usersService.remove(id);
   }
 }
