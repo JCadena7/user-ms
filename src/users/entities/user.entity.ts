@@ -1,1 +1,1 @@
-export class User {}
+export type { User } from '../domain/user.entity';
