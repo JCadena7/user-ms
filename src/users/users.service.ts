@@ -13,13 +13,40 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto) {
-    const existing = await this.repo.findByEmail(createUserDto.email);
-    if (existing) throw new ConflictException('El email ya está registrado');
+    // Validar email único
+    const existingEmail = await this.repo.findByEmail(createUserDto.email);
+    if (existingEmail) throw new ConflictException('El email ya está registrado');
+
+    // Validar username único si se proporciona
+    if (createUserDto.username) {
+      const existingUsername = await this.repo.findByUsername(createUserDto.username);
+      if (existingUsername) throw new ConflictException('El username ya está en uso');
+    }
+
+    // Validar clerkId único si se proporciona
+    if (createUserDto.clerkId) {
+      const existingClerkId = await this.repo.findByClerkId(createUserDto.clerkId);
+      if (existingClerkId) throw new ConflictException('El clerkId ya está registrado');
+    }
+
     return this.repo.create({
       clerkId: createUserDto.clerkId ?? null,
-      nombre: createUserDto.nombre,
+      username: createUserDto.username ?? null,
       email: createUserDto.email,
+      passwordHash: createUserDto.passwordHash ?? null,
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
       rolId: createUserDto.rolId ?? null,
+      avatar: createUserDto.avatar ?? null,
+      coverImage: createUserDto.coverImage ?? null,
+      bio: createUserDto.bio ?? null,
+      website: createUserDto.website ?? null,
+      location: createUserDto.location ?? null,
+      phone: createUserDto.phone ?? null,
+      birthDate: createUserDto.birthDate ?? null,
+      status: createUserDto.status ?? 'active',
+      isVerified: createUserDto.isVerified ?? false,
+      onlineStatus: createUserDto.onlineStatus ?? 'offline',
     });
   }
 
@@ -32,8 +59,11 @@ export class UsersService {
       search: params.search,
       email: params.email,
       nombre: params.nombre,
+      username: params.username,
       clerkId: params.clerkId,
       rolId: params.rolId,
+      status: params.status,
+      isVerified: params.isVerified,
     });
     if (typeof params.page === 'number' && params.page > 0) {
       return result; // objeto paginado { data, total, page, limit }
@@ -47,13 +77,39 @@ export class UsersService {
     return user;
   }
 
+  async findByUsername(username: string) {
+    const user = await this.repo.findByUsername(username);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    return user;
+  }
+
+  async findByClerkId(clerkId: string) {
+    const user = await this.repo.findByClerkId(clerkId);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    return user;
+  }
+
   async update(id: number, updateUserDto: UpdateUserDto) {
     try {
       return await this.repo.update(id, {
         clerkId: updateUserDto.clerkId,
-        nombre: updateUserDto.nombre,
+        username: updateUserDto.username,
         email: updateUserDto.email,
+        passwordHash: updateUserDto.passwordHash,
+        firstName: updateUserDto.firstName,
+        lastName: updateUserDto.lastName,
         rolId: updateUserDto.rolId,
+        avatar: updateUserDto.avatar,
+        coverImage: updateUserDto.coverImage,
+        bio: updateUserDto.bio,
+        website: updateUserDto.website,
+        location: updateUserDto.location,
+        phone: updateUserDto.phone,
+        birthDate: updateUserDto.birthDate,
+        status: updateUserDto.status,
+        isVerified: updateUserDto.isVerified,
+        onlineStatus: updateUserDto.onlineStatus,
+        lastLogin: updateUserDto.lastLogin,
       });
     } catch (e) {
       throw new NotFoundException('Usuario no encontrado');
