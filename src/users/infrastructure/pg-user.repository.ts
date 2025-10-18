@@ -15,6 +15,10 @@ function mapRow(row: any): User {
     firstName: row.first_name,
     lastName: row.last_name,
     rolId: row.rol_id ?? null,
+    rol: row.rol_id && row.rol_nombre ? {
+      id: row.rol_id,
+      nombre: row.rol_nombre
+    } : null,
     avatar: row.avatar ?? null,
     coverImage: row.cover_image ?? null,
     bio: row.bio ?? null,
@@ -36,32 +40,38 @@ export class PgUserRepository implements UserRepository {
   constructor(@Inject(PG_DB) private readonly db: DB) {}
 
   async create(data: CreateUserInput): Promise<User> {
+    const defaultAvatar = 'blob:https://aistudio.google.com/7039ab15-b909-43e7-913b-77b3cdd590b6';
     const q = sql`
-      INSERT INTO usuarios (
-        clerk_id, username, email, password_hash, first_name, last_name, rol_id,
-        avatar, cover_image, bio, website, location, phone, birth_date,
-        status, is_verified, online_status
+      WITH inserted AS (
+        INSERT INTO usuarios (
+          clerk_id, username, email, password_hash, first_name, last_name, rol_id,
+          avatar, cover_image, bio, website, location, phone, birth_date,
+          status, is_verified, online_status
+        )
+        VALUES (
+          ${data.clerkId ?? null},
+          ${data.username ?? null},
+          ${data.email},
+          ${data.passwordHash ?? null},
+          ${data.firstName},
+          ${data.lastName},
+          ${data.rolId ?? null},
+          ${data.avatar ?? defaultAvatar},
+          ${data.coverImage ?? null},
+          ${data.bio ?? null},
+          ${data.website ?? null},
+          ${data.location ?? null},
+          ${data.phone ?? null},
+          ${data.birthDate ?? null},
+          ${data.status ?? 'active'},
+          ${data.isVerified ?? false},
+          ${data.onlineStatus ?? 'offline'}
+        )
+        RETURNING *
       )
-      VALUES (
-        ${data.clerkId ?? null},
-        ${data.username ?? null},
-        ${data.email},
-        ${data.passwordHash ?? null},
-        ${data.firstName},
-        ${data.lastName},
-        ${data.rolId ?? null},
-        ${data.avatar ?? null},
-        ${data.coverImage ?? null},
-        ${data.bio ?? null},
-        ${data.website ?? null},
-        ${data.location ?? null},
-        ${data.phone ?? null},
-        ${data.birthDate ?? null},
-        ${data.status ?? 'active'},
-        ${data.isVerified ?? false},
-        ${data.onlineStatus ?? 'offline'}
-      )
-      RETURNING *
+      SELECT i.*, r.nombre as rol_nombre
+      FROM inserted i
+      LEFT JOIN roles r ON i.rol_id = r.id
     `;
     const rows = await this.db.query(q);
     return mapRow(rows[0]);
@@ -69,9 +79,10 @@ export class PgUserRepository implements UserRepository {
 
   async findAll(): Promise<User[]> {
     const q = sql`
-      SELECT *
-      FROM usuarios
-      ORDER BY id ASC
+      SELECT u.*, r.nombre as rol_nombre
+      FROM usuarios u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      ORDER BY u.id ASC
     `;
     const rows = await this.db.query(q);
     return rows.map(mapRow);
@@ -79,8 +90,10 @@ export class PgUserRepository implements UserRepository {
 
   async findById(id: number): Promise<User | null> {
     const q = sql`
-      SELECT *
-      FROM usuarios WHERE id = ${id}
+      SELECT u.*, r.nombre as rol_nombre
+      FROM usuarios u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      WHERE u.id = ${id}
     `;
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
@@ -88,8 +101,10 @@ export class PgUserRepository implements UserRepository {
 
   async findByEmail(email: string): Promise<User | null> {
     const q = sql`
-      SELECT *
-      FROM usuarios WHERE email = ${email}
+      SELECT u.*, r.nombre as rol_nombre
+      FROM usuarios u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      WHERE u.email = ${email}
     `;
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
@@ -97,8 +112,10 @@ export class PgUserRepository implements UserRepository {
 
   async findByUsername(username: string): Promise<User | null> {
     const q = sql`
-      SELECT *
-      FROM usuarios WHERE username = ${username}
+      SELECT u.*, r.nombre as rol_nombre
+      FROM usuarios u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      WHERE u.username = ${username}
     `;
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
@@ -106,8 +123,10 @@ export class PgUserRepository implements UserRepository {
 
   async findByClerkId(clerkId: string): Promise<User | null> {
     const q = sql`
-      SELECT *
-      FROM usuarios WHERE clerk_id = ${clerkId}
+      SELECT u.*, r.nombre as rol_nombre
+      FROM usuarios u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      WHERE u.clerk_id = ${clerkId}
     `;
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
@@ -201,14 +220,28 @@ export class PgUserRepository implements UserRepository {
     // Always bump updated_at
     sets.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    const text = `UPDATE usuarios SET ${sets.join(', ')} WHERE id = $${values.length + 1} RETURNING *`;
+    const text = `
+      WITH updated AS (
+        UPDATE usuarios SET ${sets.join(', ')} WHERE id = $${values.length + 1} RETURNING *
+      )
+      SELECT u.*, r.nombre as rol_nombre
+      FROM updated u
+      LEFT JOIN roles r ON u.rol_id = r.id
+    `;
     const rows = await this.db.query({ text, values: [...values, id] });
     if (!rows[0]) throw new Error('Usuario no encontrado');
     return mapRow(rows[0]);
   }
 
   async remove(id: number): Promise<User | null> {
-    const q = sql`DELETE FROM usuarios WHERE id = ${id} RETURNING *`;
+    const q = sql`
+      WITH deleted AS (
+        DELETE FROM usuarios WHERE id = ${id} RETURNING *
+      )
+      SELECT d.*, r.nombre as rol_nombre
+      FROM deleted d
+      LEFT JOIN roles r ON d.rol_id = r.id
+    `;
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
   }
@@ -232,50 +265,53 @@ export class PgUserRepository implements UserRepository {
 
     if (params.email) {
       values.push(params.email);
-      where.push(`email = $${values.length}`);
+      where.push(`u.email = $${values.length}`);
     }
     if (params.nombre) {
       values.push(`%${params.nombre}%`);
-      where.push(`(first_name ILIKE $${values.length} OR last_name ILIKE $${values.length})`);
+      where.push(`(u.first_name ILIKE $${values.length} OR u.last_name ILIKE $${values.length})`);
     }
     if (params.username) {
       values.push(params.username);
-      where.push(`username = $${values.length}`);
+      where.push(`u.username = $${values.length}`);
     }
     if (params.clerkId) {
       values.push(params.clerkId);
-      where.push(`clerk_id = $${values.length}`);
+      where.push(`u.clerk_id = $${values.length}`);
     }
     if (typeof params.rolId === 'number') {
       values.push(params.rolId);
-      where.push(`rol_id = $${values.length}`);
+      where.push(`u.rol_id = $${values.length}`);
     }
     if (params.status) {
       values.push(params.status);
-      where.push(`status = $${values.length}`);
+      where.push(`u.status = $${values.length}`);
     }
     if (typeof params.isVerified === 'boolean') {
       values.push(params.isVerified);
-      where.push(`is_verified = $${values.length}`);
+      where.push(`u.is_verified = $${values.length}`);
     }
     if (params.search) {
       // Busca en nombre, email, username y clerk_id
       values.push(`%${params.search}%`);
       const k = `$${values.length}`;
-      where.push(`(first_name ILIKE ${k} OR last_name ILIKE ${k} OR email ILIKE ${k} OR username ILIKE ${k} OR clerk_id ILIKE ${k})`);
+      where.push(`(u.first_name ILIKE ${k} OR u.last_name ILIKE ${k} OR u.email ILIKE ${k} OR u.username ILIKE ${k} OR u.clerk_id ILIKE ${k})`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const orderBy = params.orderBy ?? 'id';
+    const orderByColumn = `u.${orderBy}`;
     const order = (params.order ?? 'asc').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const hasPagination = typeof params.page === 'number' && params.page > 0;
 
     if (!hasPagination) {
-      const text = `SELECT *
-                    FROM usuarios ${whereSql}
-                    ORDER BY ${orderBy} ${order}`;
+      const text = `SELECT u.*, r.nombre as rol_nombre
+                    FROM usuarios u
+                    LEFT JOIN roles r ON u.rol_id = r.id
+                    ${whereSql}
+                    ORDER BY ${orderByColumn} ${order}`;
       const rows = await this.db.query({ text, values });
       return { data: rows.map(mapRow) };
     }
@@ -284,12 +320,14 @@ export class PgUserRepository implements UserRepository {
     const limit = params.limit && params.limit > 0 ? Math.min(params.limit, 100) : 10;
     const offset = (page - 1) * limit;
 
-    const countText = `SELECT COUNT(*)::int AS count FROM usuarios ${whereSql}`;
+    const countText = `SELECT COUNT(*)::int AS count FROM usuarios u ${whereSql}`;
     const [{ count }] = await this.db.query<{ count: number }>({ text: countText, values });
 
-    const dataText = `SELECT *
-                      FROM usuarios ${whereSql}
-                      ORDER BY ${orderBy} ${order}
+    const dataText = `SELECT u.*, r.nombre as rol_nombre
+                      FROM usuarios u
+                      LEFT JOIN roles r ON u.rol_id = r.id
+                      ${whereSql}
+                      ORDER BY ${orderByColumn} ${order}
                       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
     const dataRows = await this.db.query({ text: dataText, values: [...values, limit, offset] });
     return { data: dataRows.map(mapRow), total: count, page, limit };

@@ -1,3 +1,8 @@
+export interface Rol {
+  id: number;
+  nombre: string;
+}
+
 export interface User {
   id: number;
   clerkId: string | null;
@@ -7,6 +12,7 @@ export interface User {
   firstName: string;
   lastName: string;
   rolId: number | null;
+  rol: Rol | null;
   avatar: string | null;
   coverImage: string | null;
   bio: string | null;
