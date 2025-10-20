@@ -30,6 +30,11 @@ function mapRow(row: any): User {
     isVerified: row.is_verified ?? false,
     onlineStatus: row.online_status ?? 'offline',
     lastLogin: row.last_login ?? null,
+    stats: (row.stats_posts_created ?? row.stats_comments_approved ?? row.stats_users_managed) !== undefined ? {
+      postsCreated: row.stats_posts_created ?? 0,
+      commentsApproved: row.stats_comments_approved ?? 0,
+      usersManaged: row.stats_users_managed ?? 0,
+    } : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -69,9 +74,13 @@ export class PgUserRepository implements UserRepository {
         )
         RETURNING *
       )
-      SELECT i.*, r.nombre as rol_nombre
+      SELECT i.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM inserted i
       LEFT JOIN roles r ON i.rol_id = r.id
+      LEFT JOIN user_stats us ON i.id = us.user_id
     `;
     const rows = await this.db.query(q);
     return mapRow(rows[0]);
@@ -79,9 +88,13 @@ export class PgUserRepository implements UserRepository {
 
   async findAll(): Promise<User[]> {
     const q = sql`
-      SELECT u.*, r.nombre as rol_nombre
+      SELECT u.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM usuarios u
       LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN user_stats us ON u.id = us.user_id
       ORDER BY u.id ASC
     `;
     const rows = await this.db.query(q);
@@ -90,9 +103,13 @@ export class PgUserRepository implements UserRepository {
 
   async findById(id: number): Promise<User | null> {
     const q = sql`
-      SELECT u.*, r.nombre as rol_nombre
+      SELECT u.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM usuarios u
       LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN user_stats us ON u.id = us.user_id
       WHERE u.id = ${id}
     `;
     const rows = await this.db.query(q);
@@ -101,9 +118,13 @@ export class PgUserRepository implements UserRepository {
 
   async findByEmail(email: string): Promise<User | null> {
     const q = sql`
-      SELECT u.*, r.nombre as rol_nombre
+      SELECT u.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM usuarios u
       LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN user_stats us ON u.id = us.user_id
       WHERE u.email = ${email}
     `;
     const rows = await this.db.query(q);
@@ -112,9 +133,13 @@ export class PgUserRepository implements UserRepository {
 
   async findByUsername(username: string): Promise<User | null> {
     const q = sql`
-      SELECT u.*, r.nombre as rol_nombre
+      SELECT u.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM usuarios u
       LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN user_stats us ON u.id = us.user_id
       WHERE u.username = ${username}
     `;
     const rows = await this.db.query(q);
@@ -123,9 +148,13 @@ export class PgUserRepository implements UserRepository {
 
   async findByClerkId(clerkId: string): Promise<User | null> {
     const q = sql`
-      SELECT u.*, r.nombre as rol_nombre
+      SELECT u.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM usuarios u
       LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN user_stats us ON u.id = us.user_id
       WHERE u.clerk_id = ${clerkId}
     `;
     const rows = await this.db.query(q);
@@ -224,9 +253,13 @@ export class PgUserRepository implements UserRepository {
       WITH updated AS (
         UPDATE usuarios SET ${sets.join(', ')} WHERE id = $${values.length + 1} RETURNING *
       )
-      SELECT u.*, r.nombre as rol_nombre
+      SELECT u.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM updated u
       LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN user_stats us ON u.id = us.user_id
     `;
     const rows = await this.db.query({ text, values: [...values, id] });
     if (!rows[0]) throw new Error('Usuario no encontrado');
@@ -238,9 +271,13 @@ export class PgUserRepository implements UserRepository {
       WITH deleted AS (
         DELETE FROM usuarios WHERE id = ${id} RETURNING *
       )
-      SELECT d.*, r.nombre as rol_nombre
+      SELECT d.*, r.nombre as rol_nombre,
+             us.posts_created as stats_posts_created,
+             us.comments_approved as stats_comments_approved,
+             us.users_managed as stats_users_managed
       FROM deleted d
       LEFT JOIN roles r ON d.rol_id = r.id
+      LEFT JOIN user_stats us ON d.id = us.user_id
     `;
     const rows = await this.db.query(q);
     return rows[0] ? mapRow(rows[0]) : null;
@@ -307,9 +344,13 @@ export class PgUserRepository implements UserRepository {
     const hasPagination = typeof params.page === 'number' && params.page > 0;
 
     if (!hasPagination) {
-      const text = `SELECT u.*, r.nombre as rol_nombre
+      const text = `SELECT u.*, r.nombre as rol_nombre,
+                    us.posts_created as stats_posts_created,
+                    us.comments_approved as stats_comments_approved,
+                    us.users_managed as stats_users_managed
                     FROM usuarios u
                     LEFT JOIN roles r ON u.rol_id = r.id
+                    LEFT JOIN user_stats us ON u.id = us.user_id
                     ${whereSql}
                     ORDER BY ${orderByColumn} ${order}`;
       const rows = await this.db.query({ text, values });
@@ -323,9 +364,13 @@ export class PgUserRepository implements UserRepository {
     const countText = `SELECT COUNT(*)::int AS count FROM usuarios u ${whereSql}`;
     const [{ count }] = await this.db.query<{ count: number }>({ text: countText, values });
 
-    const dataText = `SELECT u.*, r.nombre as rol_nombre
+    const dataText = `SELECT u.*, r.nombre as rol_nombre,
+                      us.posts_created as stats_posts_created,
+                      us.comments_approved as stats_comments_approved,
+                      us.users_managed as stats_users_managed
                       FROM usuarios u
                       LEFT JOIN roles r ON u.rol_id = r.id
+                      LEFT JOIN user_stats us ON u.id = us.user_id
                       ${whereSql}
                       ORDER BY ${orderByColumn} ${order}
                       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;

@@ -1035,6 +1035,7 @@ export async function initDatabaseEnhanced() {
     const rolesDefault = [
       { nombre: 'administrador', descripcion: 'Control total del sistema' },
       { nombre: 'editor', descripcion: 'Puede crear y editar contenido, pero no administrar usuarios' },
+      { nombre: 'escritor', descripcion: 'puede crear contenido' },
       { nombre: 'autor', descripcion: 'Puede crear contenido pero necesita aprobación' },
       { nombre: 'comentador', descripcion: 'Solo puede comentar en posts publicados' },
     ];
@@ -1274,6 +1275,23 @@ export async function initDatabaseEnhanced() {
           VALUES ($1, $2)
           ON CONFLICT DO NOTHING
         `, [editorRol.rows[0].id, permiso.id]);
+      }
+    }
+
+    // Asignar permisos al rol escritor
+    const escritorRol = await client.query(`SELECT id FROM roles WHERE nombre = 'escritor' LIMIT 1`);
+    if (escritorRol.rows.length > 0) {
+      const escritorPermisos = await client.query(`
+        SELECT id FROM permisos 
+        WHERE nombre IN ('comentar', 'crear_post', 'editar_post_propio', 
+                        'reaccionar')
+      `);
+      for (const permiso of escritorPermisos.rows) {
+        await client.query(`
+          INSERT INTO roles_permisos (rol_id, permiso_id)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [escritorRol.rows[0].id, permiso.id]);
       }
     }
 

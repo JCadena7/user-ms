@@ -3,6 +3,12 @@ export interface Rol {
   nombre: string;
 }
 
+export interface UserStats {
+  postsCreated: number;
+  commentsApproved: number;
+  usersManaged: number;
+}
+
 export interface User {
   id: number;
   clerkId: string | null;
@@ -24,6 +30,7 @@ export interface User {
   isVerified: boolean;
   onlineStatus: 'online' | 'offline' | 'away';
   lastLogin: Date | null;
+  stats?: UserStats;
   createdAt: Date;
   updatedAt: Date;
 }
