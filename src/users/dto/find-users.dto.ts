@@ -18,8 +18,8 @@ export class FindUsersDto {
 
   // Ordenación opcional
   @IsOptional()
-  @IsIn(['id', 'nombre', 'email', 'created_at'])
-  orderBy?: 'id' | 'nombre' | 'email' | 'created_at';
+  @IsIn(['id', 'first_name', 'last_name', 'email', 'username', 'created_at', 'status'])
+  orderBy?: 'id' | 'first_name' | 'last_name' | 'email' | 'username' | 'created_at' | 'status';
 
   @IsOptional()
   @IsIn(['asc', 'desc'])
@@ -39,7 +39,12 @@ export class FindUsersDto {
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
-  nombre?: string;
+  nombre?: string; // Mantener para compatibilidad, busca en firstName y lastName
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  username?: string;
 
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -50,4 +55,12 @@ export class FindUsersDto {
   @Type(() => Number)
   @IsInt()
   rolId?: number;
+
+  @IsOptional()
+  @IsIn(['active', 'inactive', 'suspended'])
+  status?: 'active' | 'inactive' | 'suspended';
+
+  @IsOptional()
+  @Type(() => Boolean)
+  isVerified?: boolean;
 }

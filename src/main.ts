@@ -13,7 +13,7 @@ async function bootstrap() {
     {
       transport: Transport.TCP,
       options: {
-        // host: 'envs.host',
+        host: '0.0.0.0',
         port: envs.port,
       },
     },
@@ -26,8 +26,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  
 
   await app.listen();
-  logger.log(`🚀 user microdervice running on port ${envs.port}`);
+  logger.log(`🚀 user and user-activities microservices running on port ${envs.port}`);
 }
 bootstrap();
