@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { UsersService } from './users.service';
+import { UsersService, UploadedFilePayload } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ParseIntPipe } from '@nestjs/common';
@@ -38,6 +38,16 @@ export class UsersController {
   @MessagePattern('updateUser')
   update(@Payload() updateUserDto: UpdateUserDto) {
     return this.usersService.update(updateUserDto.id, updateUserDto);
+  }
+
+  @MessagePattern('uploadUserAvatar')
+  uploadAvatar(@Payload() payload: { userId: number; file: UploadedFilePayload }) {
+    return this.usersService.uploadAvatar(payload);
+  }
+
+  @MessagePattern('uploadUserCoverImage')
+  uploadCoverImage(@Payload() payload: { userId: number; file: UploadedFilePayload }) {
+    return this.usersService.uploadCoverImage(payload);
   }
 
   @MessagePattern('removeUser')

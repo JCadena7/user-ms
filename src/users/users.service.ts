@@ -1,16 +1,71 @@
-import { Inject, Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { USER_REPOSITORY } from './domain/user.repository';
 import type { UserRepository } from './domain/user.repository';
 import { FindUsersDto } from './dto/find-users.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+
+export interface UploadedFilePayload {
+  buffer: Buffer | Uint8Array | { data: number[] } | number[];
+  mimetype?: string;
+  originalname?: string;
+}
 
 @Injectable()
 export class UsersService {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly repo: UserRepository,
+    private readonly cloudinary: CloudinaryService,
   ) {}
+
+  private toBuffer(input: UploadedFilePayload['buffer']): Buffer | null {
+    if (!input) return null;
+    if (Buffer.isBuffer(input)) return input;
+    if (input instanceof Uint8Array) return Buffer.from(input);
+    if (Array.isArray(input)) return Buffer.from(input);
+    if (typeof (input as any)?.data !== 'undefined') {
+      return Buffer.from((input as any).data);
+    }
+    return null;
+  }
+
+  async uploadAvatar(payload: { userId: number; file: UploadedFilePayload }) {
+    const { userId, file } = payload;
+    const user = await this.repo.findById(userId);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const buffer = this.toBuffer(file?.buffer);
+    if (!buffer) throw new BadRequestException('Archivo inválido');
+
+    const secureUrl = await this.cloudinary.uploadImage(
+      buffer,
+      `users/${userId}`,
+      file?.originalname ?? `user-${userId}-avatar`,
+    );
+
+    await this.repo.update(userId, { avatar: secureUrl } as any);
+    return this.repo.findById(userId);
+  }
+
+  async uploadCoverImage(payload: { userId: number; file: UploadedFilePayload }) {
+    const { userId, file } = payload;
+    const user = await this.repo.findById(userId);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const buffer = this.toBuffer(file?.buffer);
+    if (!buffer) throw new BadRequestException('Archivo inválido');
+
+    const secureUrl = await this.cloudinary.uploadImage(
+      buffer,
+      `users/${userId}`,
+      file?.originalname ?? `user-${userId}-cover`,
+    );
+
+    await this.repo.update(userId, { coverImage: secureUrl } as any);
+    return this.repo.findById(userId);
+  }
 
   async create(createUserDto: CreateUserDto) {
     // Validar email único
